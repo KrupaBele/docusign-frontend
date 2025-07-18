@@ -107,16 +107,20 @@ const SignDocumentPage: React.FC = () => {
 
   // Load document data
   useEffect(() => {
+    console.log("running");
+
     const fetchDocument = async () => {
       try {
         setLoading(true);
         const response = await fetch(`${API_URL}/api/signatures/${id}`);
 
-        if (!response.ok) {
-          throw new Error("Document not found");
-        }
+        // if (!response.ok) {
+        //   throw new Error("Document not found");
+        // }
 
         const data = await response.json();
+        console.log(data, "this is data");
+
         setDocumentData(data);
         if (data.documentContent) {
           setTextContent(data.documentContent);
@@ -143,6 +147,8 @@ const SignDocumentPage: React.FC = () => {
           setSigned(data.recipients[0].signed);
         }
       } catch (err) {
+        console.log(err, "error");
+
         setError(
           err instanceof Error ? err.message : "Failed to load document"
         );
