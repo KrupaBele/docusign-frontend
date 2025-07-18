@@ -20,6 +20,7 @@ import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import { Menu, X } from "lucide-react";
+const API_URL = import.meta.env.VITE_API_URL;
 
 interface SignatureField {
   _id: string;
@@ -109,7 +110,7 @@ const SignDocumentPage: React.FC = () => {
     const fetchDocument = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_UR}/api/signatures/${id}`);
+        const response = await fetch(`${API_URL}/api/signatures/${id}`);
 
         if (!response.ok) {
           throw new Error("Document not found");
@@ -303,7 +304,7 @@ const SignDocumentPage: React.FC = () => {
         renderedHeight,
       }));
       // Send ALL signed fields to the backend, not just current recipient's
-      const response = await fetch(`${API_UR}/api/signatures/${id}/sign`, {
+      const response = await fetch(`${API_URL}/api/signatures/${id}/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

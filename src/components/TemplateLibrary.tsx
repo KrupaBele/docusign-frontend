@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { Template } from "../types";
+const API_URL = import.meta.env.VITE_API_URL;
 
 interface TemplateLibraryProps {
   onSelectTemplate: (template: Template) => void;
@@ -27,7 +28,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   React.useEffect(() => {
     const fetchTemplates = async () => {
       try {
-        const res = await fetch("${API_UR}/api/templates");
+        const res = await fetch(`${API_URL}/api/templates`);
         const data = await res.json();
         setCustomTemplates(
           data.map((tpl: any) => ({

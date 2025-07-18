@@ -32,6 +32,7 @@ import {
   requestNotificationPermission,
 } from "../services/emailService";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+const API_URL = import.meta.env.VITE_API_URL;
 
 interface DocumentEditorProps {
   template: Template;
@@ -804,7 +805,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
       };
       console.log("🚀 Saving template with fields:", documentFields);
 
-      const response = await fetch("${API_UR}/api/templates", {
+      const response = await fetch(`${API_URL}/api/templates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newTemplate),
@@ -887,7 +888,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
         senderName: "Document Sender",
       };
 
-      const result = await fetch("${API_UR}/api/signatures/send", {
+      const result = await fetch(`${API_URL}/api/signatures/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
