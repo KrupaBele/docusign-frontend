@@ -71,6 +71,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       });
 
       const data = await res.json();
+      console.log(data);
 
       if (!res.ok || !data.fileUrl) {
         throw new Error("Upload failed");
@@ -93,6 +94,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
 
   const handleContinue = () => {
     if (!uploadedFile || !documentTitle.trim() || !serverFileUrl) return;
+    console.log(serverFileUrl, "sjldjwl");
 
     onContinue({
       title: documentTitle,
