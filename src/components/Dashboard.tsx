@@ -137,6 +137,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <button className="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium">
                 Settings
               </button>
+              <h1>env:{API_URL}</h1>
             </div>
           </div>
         </div>
