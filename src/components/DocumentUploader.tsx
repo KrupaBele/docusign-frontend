@@ -64,7 +64,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("http://localhost:5000/api/upload", {
+      const res = await fetch("${API_UR}/api/upload", {
         method: "POST",
         body: formData,
       });

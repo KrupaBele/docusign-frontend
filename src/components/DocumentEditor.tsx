@@ -804,7 +804,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
       };
       console.log("🚀 Saving template with fields:", documentFields);
 
-      const response = await fetch("http://localhost:5000/api/templates", {
+      const response = await fetch("${API_UR}/api/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newTemplate),
@@ -887,7 +887,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
         senderName: "Document Sender",
       };
 
-      const result = await fetch("http://localhost:5000/api/signatures/send", {
+      const result = await fetch("${API_UR}/api/signatures/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

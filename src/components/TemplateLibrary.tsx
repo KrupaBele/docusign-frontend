@@ -27,7 +27,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   React.useEffect(() => {
     const fetchTemplates = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/templates");
+        const res = await fetch("${API_UR}/api/templates");
         const data = await res.json();
         setCustomTemplates(
           data.map((tpl: any) => ({

@@ -53,7 +53,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       // Ensure the URL is absolute if it's relative
       const fullUrl = url.startsWith("http")
         ? url
-        : `http://localhost:5000${url}`;
+        : `${API_UR}${url}`;
 
       // Add cache busting parameter
       const cacheBusterUrl = `${fullUrl}?t=${Date.now()}`;
@@ -106,7 +106,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     const fetchDocuments = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/signatures");
+        const res = await fetch("${API_UR}/api/signatures");
         const data = await res.json();
         setDocuments(data);
       } catch (err) {

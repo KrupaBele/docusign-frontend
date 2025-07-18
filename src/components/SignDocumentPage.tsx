@@ -109,9 +109,7 @@ const SignDocumentPage: React.FC = () => {
     const fetchDocument = async () => {
       try {
         setLoading(true);
-        const response = await fetch(
-          `http://localhost:5000/api/signatures/${id}`
-        );
+        const response = await fetch(`${API_UR}/api/signatures/${id}`);
 
         if (!response.ok) {
           throw new Error("Document not found");
@@ -305,17 +303,14 @@ const SignDocumentPage: React.FC = () => {
         renderedHeight,
       }));
       // Send ALL signed fields to the backend, not just current recipient's
-      const response = await fetch(
-        `http://localhost:5000/api/signatures/${id}/sign`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            recipientId: currentRecipient._id,
-            fields: fieldsWithDimensions.filter((f) => f.signedData),
-          }),
-        }
-      );
+      const response = await fetch(`${API_UR}/api/signatures/${id}/sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientId: currentRecipient._id,
+          fields: fieldsWithDimensions.filter((f) => f.signedData),
+        }),
+      });
 
       const result = await response.json();
 
