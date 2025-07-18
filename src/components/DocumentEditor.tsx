@@ -17,6 +17,7 @@ import {
   FileText,
   Download,
   Copy,
+  Menu,
 } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
@@ -107,6 +108,11 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [pageHeight, setPageHeight] = useState(0);
   const [pageWidth, setPageWidth] = useState(0);
   const [scrollPosition, setScrollPosition] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const handleFieldSelection = (fieldType: string) => {
+    setSelectedField(selectedField === fieldType ? null : fieldType);
+    setIsSidebarOpen(false); // Close sidebar when field is selected
+  };
 
   // Request notification permission on component mount
   React.useEffect(() => {
@@ -1018,256 +1024,262 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
         </header>
 
         <div className="flex h-[calc(100vh-4rem)]">
+          {!isSidebarOpen && (
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="absolute left-0 top-4 z-10 p-2 bg-white rounded-r-lg shadow-sm border border-gray-200 border-l-0 hover:bg-gray-50"
+            >
+              <Menu className="w-5 h-5 text-gray-600" />
+            </button>
+          )}
           {/* Left Sidebar */}
-          <div className="w-80 bg-white border-r border-gray-200 overflow-y-auto">
-            {/* Add Fields Section */}
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Add Fields
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() =>
-                    setSelectedField(
-                      selectedField === "signature" ? null : "signature"
-                    )
-                  }
-                  className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
-                    selectedField === "signature"
-                      ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-gray-200 hover:border-gray-300 text-gray-600"
-                  }`}
-                >
-                  <PenTool className="w-6 h-6 mb-2" />
-                  <span className="text-sm font-medium">Signature</span>
-                </button>
+          {isSidebarOpen && (
+            <div className="w-80 bg-white border-r border-gray-200 overflow-y-auto">
+              {/* Add Fields Section */}
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Add Fields
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleFieldSelection("signature")}
+                    className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
+                      selectedField === "signature"
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-gray-200 hover:border-gray-300 text-gray-600"
+                    }`}
+                  >
+                    <PenTool className="w-6 h-6 mb-2" />
+                    <span className="text-sm font-medium">Signature</span>
+                  </button>
 
-                <button
-                  onClick={() =>
-                    setSelectedField(selectedField === "date" ? null : "date")
-                  }
-                  className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
-                    selectedField === "date"
-                      ? "border-green-500 bg-green-50 text-green-700"
-                      : "border-gray-200 hover:border-gray-300 text-gray-600"
-                  }`}
-                >
-                  <Calendar className="w-6 h-6 mb-2" />
-                  <span className="text-sm font-medium">Date</span>
-                </button>
+                  <button
+                    onClick={() => handleFieldSelection("date")}
+                    className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
+                      selectedField === "date"
+                        ? "border-green-500 bg-green-50 text-green-700"
+                        : "border-gray-200 hover:border-gray-300 text-gray-600"
+                    }`}
+                  >
+                    <Calendar className="w-6 h-6 mb-2" />
+                    <span className="text-sm font-medium">Date</span>
+                  </button>
 
-                <button
-                  onClick={() =>
-                    setSelectedField(selectedField === "text" ? null : "text")
-                  }
-                  className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
-                    selectedField === "text"
-                      ? "border-purple-500 bg-purple-50 text-purple-700"
-                      : "border-gray-200 hover:border-gray-300 text-gray-600"
-                  }`}
-                >
-                  <Type className="w-6 h-6 mb-2" />
-                  <span className="text-sm font-medium">Text</span>
-                </button>
+                  <button
+                    onClick={() =>
+                      setSelectedField(selectedField === "text" ? null : "text")
+                    }
+                    className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
+                      selectedField === "text"
+                        ? "border-purple-500 bg-purple-50 text-purple-700"
+                        : "border-gray-200 hover:border-gray-300 text-gray-600"
+                    }`}
+                  >
+                    <Type className="w-6 h-6 mb-2" />
+                    <span className="text-sm font-medium">Text</span>
+                  </button>
 
-                <button
-                  onClick={() =>
-                    setSelectedField(
-                      selectedField === "checkbox" ? null : "checkbox"
-                    )
-                  }
-                  className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
-                    selectedField === "checkbox"
-                      ? "border-orange-500 bg-orange-50 text-orange-700"
-                      : "border-gray-200 hover:border-gray-300 text-gray-600"
-                  }`}
-                >
-                  <CheckSquare className="w-6 h-6 mb-2" />
-                  <span className="text-sm font-medium">Checkbox</span>
-                </button>
+                  <button
+                    onClick={() =>
+                      setSelectedField(
+                        selectedField === "checkbox" ? null : "checkbox"
+                      )
+                    }
+                    className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
+                      selectedField === "checkbox"
+                        ? "border-orange-500 bg-orange-50 text-orange-700"
+                        : "border-gray-200 hover:border-gray-300 text-gray-600"
+                    }`}
+                  >
+                    <CheckSquare className="w-6 h-6 mb-2" />
+                    <span className="text-sm font-medium">Checkbox</span>
+                  </button>
+                </div>
+
+                {selectedField && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      Click on the document to place a {selectedField} field
+                      {totalPages > 1 && " on any page"}
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {selectedField && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    Click on the document to place a {selectedField} field
-                    {totalPages > 1 && " on any page"}
-                  </p>
+              {/* Multi-page Features */}
+              {totalPages > 1 && (
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                    Multi-Page Tools
+                  </h3>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-purple-800 mb-2">
+                      💡 <strong>Tip:</strong> Use "Duplicate to All Pages" on
+                      any field to copy it to the same position relative to the
+                      bottom of each page.
+                    </p>
+                    <p className="text-xs text-purple-600">
+                      Perfect for signatures, initials, or date fields that need
+                      to appear consistently across all pages.
+                    </p>
+                  </div>
                 </div>
               )}
-            </div>
 
-            {/* Multi-page Features */}
-            {totalPages > 1 && (
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                  Multi-Page Tools
-                </h3>
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-purple-800 mb-2">
-                    💡 <strong>Tip:</strong> Use "Duplicate to All Pages" on any
-                    field to copy it to the same position relative to the bottom
-                    of each page.
-                  </p>
-                  <p className="text-xs text-purple-600">
-                    Perfect for signatures, initials, or date fields that need
-                    to appear consistently across all pages.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Page Overview */}
-            {totalPages > 1 && (
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                  Page Overview
-                </h3>
-                <div className="space-y-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                    (pageNum) => {
-                      const pageFields = documentFields.filter(
-                        (f) => f.pageNumber === pageNum
-                      );
-                      return (
-                        <div
-                          key={pageNum}
-                          className="flex items-center justify-between text-sm"
-                        >
-                          <span className="text-gray-600">Page {pageNum}</span>
-                          <span className="text-gray-500">
-                            {pageFields.length} field
-                            {pageFields.length !== 1 ? "s" : ""}
-                          </span>
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Recipients Section */}
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Recipients
-                </h3>
-                <button
-                  onClick={addRecipient}
-                  className="flex items-center text-blue-600 hover:text-blue-700"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {recipients.map((recipient, index) => (
-                  <div
-                    key={recipient.id}
-                    className="border border-gray-200 rounded-lg p-4"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center">
-                        <User className="w-4 h-4 text-gray-400 mr-2" />
-                        <span className="text-sm font-medium text-gray-700">
-                          Recipient {index + 1}
-                        </span>
-                      </div>
-                      {recipients.length > 1 && (
-                        <button
-                          onClick={() => removeRecipient(recipient.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {isEditingRecipient === recipient.id ? (
-                      <div className="space-y-2">
-                        <input
-                          type="text"
-                          value={recipient.name}
-                          onChange={(e) =>
-                            updateRecipient(recipient.id, {
-                              name: e.target.value,
-                            })
-                          }
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
-                          placeholder="Full name"
-                        />
-                        <input
-                          type="email"
-                          value={recipient.email}
-                          onChange={(e) =>
-                            updateRecipient(recipient.id, {
-                              email: e.target.value,
-                            })
-                          }
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
-                          placeholder="email@example.com"
-                        />
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => setIsEditingRecipient(null)}
-                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
+              {/* Page Overview */}
+              {totalPages > 1 && (
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                    Page Overview
+                  </h3>
+                  <div className="space-y-2">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                      (pageNum) => {
+                        const pageFields = documentFields.filter(
+                          (f) => f.pageNumber === pageNum
+                        );
+                        return (
+                          <div
+                            key={pageNum}
+                            className="flex items-center justify-between text-sm"
                           >
-                            Save
-                          </button>
-                          <button
-                            onClick={() => setIsEditingRecipient(null)}
-                            className="px-2 py-1 text-xs text-gray-600 border border-gray-300 rounded"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={() => setIsEditingRecipient(recipient.id)}
-                        className="cursor-pointer"
-                      >
-                        <p className="text-sm text-gray-900">
-                          {recipient.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {recipient.email}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                          <select
-                            value={recipient.role}
-                            onChange={(e) =>
-                              updateRecipient(recipient.id, {
-                                role: e.target.value as "signer" | "viewer",
-                              })
-                            }
-                            className="text-xs border border-gray-300 rounded px-2 py-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="signer">Signer</option>
-                            <option value="viewer">Viewer</option>
-                          </select>
-                          <span className="text-xs text-gray-500">
-                            {
-                              documentFields.filter(
-                                (f) => f.recipientId === recipient.id
-                              ).length
-                            }{" "}
-                            fields
-                          </span>
-                        </div>
-                      </div>
+                            <span className="text-gray-600">
+                              Page {pageNum}
+                            </span>
+                            <span className="text-gray-500">
+                              {pageFields.length} field
+                              {pageFields.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        );
+                      }
                     )}
                   </div>
-                ))}
+                </div>
+              )}
+
+              {/* Recipients Section */}
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Recipients
+                  </h3>
+                  <button
+                    onClick={addRecipient}
+                    className="flex items-center text-blue-600 hover:text-blue-700"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {recipients.map((recipient, index) => (
+                    <div
+                      key={recipient.id}
+                      className="border border-gray-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          <User className="w-4 h-4 text-gray-400 mr-2" />
+                          <span className="text-sm font-medium text-gray-700">
+                            Recipient {index + 1}
+                          </span>
+                        </div>
+                        {recipients.length > 1 && (
+                          <button
+                            onClick={() => removeRecipient(recipient.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {isEditingRecipient === recipient.id ? (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={recipient.name}
+                            onChange={(e) =>
+                              updateRecipient(recipient.id, {
+                                name: e.target.value,
+                              })
+                            }
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                            placeholder="Full name"
+                          />
+                          <input
+                            type="email"
+                            value={recipient.email}
+                            onChange={(e) =>
+                              updateRecipient(recipient.id, {
+                                email: e.target.value,
+                              })
+                            }
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                            placeholder="email@example.com"
+                          />
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => setIsEditingRecipient(null)}
+                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setIsEditingRecipient(null)}
+                              className="px-2 py-1 text-xs text-gray-600 border border-gray-300 rounded"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => setIsEditingRecipient(recipient.id)}
+                          className="cursor-pointer"
+                        >
+                          <p className="text-sm text-gray-900">
+                            {recipient.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {recipient.email}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <select
+                              value={recipient.role}
+                              onChange={(e) =>
+                                updateRecipient(recipient.id, {
+                                  role: e.target.value as "signer" | "viewer",
+                                })
+                              }
+                              className="text-xs border border-gray-300 rounded px-2 py-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <option value="signer">Signer</option>
+                              <option value="viewer">Viewer</option>
+                            </select>
+                            <span className="text-xs text-gray-500">
+                              {
+                                documentFields.filter(
+                                  (f) => f.recipientId === recipient.id
+                                ).length
+                              }{" "}
+                              fields
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Main Document Area */}
-          <div className="flex-1 overflow-auto">
+          <div className=" flex-1 overflow-auto">
             <div className="p-8">
               <div
                 className="document-area bg-white shadow-lg rounded-lg min-h-[800px] relative cursor-crosshair"
@@ -1515,12 +1527,14 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       </div>
                     ) : (
                       /* Regular text document */
-                      <div>
-                        <h1 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">
-                          {documentTitle}
-                        </h1>
-                        <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">
-                          {documentContent}
+                      <div className="px-8 py-8">
+                        <div>
+                          <h1 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">
+                            {documentTitle}
+                          </h1>
+                          <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">
+                            {documentContent}
+                          </div>
                         </div>
                       </div>
                     )}

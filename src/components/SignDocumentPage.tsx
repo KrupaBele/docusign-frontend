@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -18,6 +18,8 @@ import {
 import SignatureModal, { SavedSignature } from "./SignatureModal";
 import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
 import "@react-pdf-viewer/core/lib/styles/index.css";
+import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
+import { Menu, X } from "lucide-react";
 
 interface SignatureField {
   _id: string;
@@ -61,6 +63,7 @@ interface DocumentData {
 }
 
 const SignDocumentPage: React.FC = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -73,15 +76,33 @@ const SignDocumentPage: React.FC = () => {
   const [currentRecipient, setCurrentRecipient] = useState<Recipient | null>(
     null
   );
+  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textContainerRef = useRef<HTMLDivElement>(null);
   const [signing, setSigning] = useState(false);
   const [signed, setSigned] = useState(false);
   const [showFieldsOverlay, setShowFieldsOverlay] = useState(true);
+  const [scrollPosition, setScrollPosition] = useState(0);
+
   const [selectedFieldType, setSelectedFieldType] = useState<
     "signature" | "date" | "text" | "checkbox"
   >("signature");
   const [isPlacingField, setIsPlacingField] = useState(false);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => {
+    const handleScroll = () => {
+      if (containerRef.current) {
+        setScrollPosition(containerRef.current.scrollTop);
+      }
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener("scroll", handleScroll);
+      return () => container.removeEventListener("scroll", handleScroll);
+    }
+  }, []);
 
   // Load document data
   useEffect(() => {
@@ -196,6 +217,7 @@ const SignDocumentPage: React.FC = () => {
   const handleAddField = (type: "signature" | "date" | "text" | "checkbox") => {
     setSelectedFieldType(type);
     setIsPlacingField(true);
+    setIsSidebarOpen(false);
   };
 
   const downloadPDF = (url: string, filename = "signed_document.pdf") => {
@@ -271,7 +293,17 @@ const SignDocumentPage: React.FC = () => {
         );
         return;
       }
-
+      const pageContainer = document.querySelectorAll(
+        ".rpv-core__page-layer"
+      )[0] as HTMLElement;
+      const rect = pageContainer?.getBoundingClientRect();
+      const renderedWidth = rect?.width || 800;
+      const renderedHeight = rect?.height || 1035;
+      const fieldsWithDimensions = documentData.fields.map((field) => ({
+        ...field,
+        renderedWidth,
+        renderedHeight,
+      }));
       // Send ALL signed fields to the backend, not just current recipient's
       const response = await fetch(
         `http://localhost:5000/api/signatures/${id}/sign`,
@@ -280,7 +312,7 @@ const SignDocumentPage: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             recipientId: currentRecipient._id,
-            fields: documentData.fields.filter((f) => f.signedData), // This now includes all signed fields
+            fields: fieldsWithDimensions.filter((f) => f.signedData),
           }),
         }
       );
@@ -314,6 +346,27 @@ const SignDocumentPage: React.FC = () => {
 
   const renderSignatureField = (field: SignatureField) => {
     if (field.pageNumber !== currentPage) return null;
+    if (field.pageNumber !== currentPage) return null;
+
+    // Scale rendering based on page size (assuming 612x792 pt PDF pages)
+    let container: HTMLElement | null = null;
+    if (documentData.fileType === "application/pdf") {
+      container = document.querySelectorAll(".rpv-core__page-layer")[
+        currentPage - 1
+      ] as HTMLElement;
+    } else if (
+      documentData.fileType === "text/plain" &&
+      textContainerRef.current
+    ) {
+      container = textContainerRef.current;
+    }
+
+    if (!container) return null;
+
+    const rect = container.getBoundingClientRect();
+    const scaleX = rect.width / 612;
+    const scaleY = rect.height / 792;
+
     const isCurrentRecipientField = field.recipientId === currentRecipient?._id;
     const isSigned = !!field.signedData;
 
@@ -411,7 +464,7 @@ const SignDocumentPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className=" mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <button
@@ -520,175 +573,185 @@ const SignDocumentPage: React.FC = () => {
       )}
 
       {/* Document Viewer */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-8rem)] overflow-hidden">
-        <div className="flex gap-6 h-full">
+      <main className=" px-8 sm:px-6 lg:px-8 py-8 overflow-hidden">
+        <div className="flex h-[calc(100vh-4rem)]">
+          {!isSidebarOpen && (
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="absolute left-0 top-20 z-10 p-2 bg-white rounded-r-lg shadow-sm border border-gray-200 border-l-0 hover:bg-gray-50"
+            >
+              <Menu className="w-5 h-5 text-gray-600" />
+            </button>
+          )}
           {/* Left Sidebar - Field Tools */}
-          <div className="w-80 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            {/* Add Fields Section */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Add Fields
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleAddField("signature")}
-                  className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
-                    selectedFieldType === "signature" && isPlacingField
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                  disabled={signed}
-                >
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
-                    <svg
-                      className="w-5 h-5 text-blue-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">
-                    Signature
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleAddField("date")}
-                  className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
-                    selectedFieldType === "date" && isPlacingField
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                  disabled={signed}
-                >
-                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mb-2">
-                    <Calendar className="w-5 h-5 text-green-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">
-                    Date
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleAddField("text")}
-                  className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
-                    selectedFieldType === "text" && isPlacingField
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                  disabled={signed}
-                >
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
-                    <Type className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">
-                    Text
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleAddField("checkbox")}
-                  className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
-                    selectedFieldType === "checkbox" && isPlacingField
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                  disabled={signed}
-                >
-                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mb-2">
-                    <Square className="w-5 h-5 text-orange-600" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">
-                    Checkbox
-                  </span>
-                </button>
-              </div>
-
-              {isPlacingField && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    💡 Click anywhere on the document to place a{" "}
-                    {selectedFieldType} field
-                  </p>
+          {isSidebarOpen && (
+            <div className="w-80 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              {/* Add Fields Section */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Add Fields
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
                   <button
-                    onClick={() => setIsPlacingField(false)}
-                    className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                    onClick={() => handleAddField("signature")}
+                    className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
+                      selectedFieldType === "signature" && isPlacingField
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    disabled={signed}
                   >
-                    Cancel
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+                      <svg
+                        className="w-5 h-5 text-blue-600"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">
+                      Signature
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddField("date")}
+                    className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
+                      selectedFieldType === "date" && isPlacingField
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    disabled={signed}
+                  >
+                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mb-2">
+                      <Calendar className="w-5 h-5 text-green-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">
+                      Date
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddField("text")}
+                    className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
+                      selectedFieldType === "text" && isPlacingField
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    disabled={signed}
+                  >
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
+                      <Type className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">
+                      Text
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAddField("checkbox")}
+                    className={`flex flex-col items-center p-4 border-2 rounded-lg transition-colors ${
+                      selectedFieldType === "checkbox" && isPlacingField
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    disabled={signed}
+                  >
+                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mb-2">
+                      <Square className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">
+                      Checkbox
+                    </span>
                   </button>
                 </div>
-              )}
-            </div>
 
-            {/* Current Recipient Info */}
-            {currentRecipient && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                  Your Information
-                </h3>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center mb-2">
-                    <User className="w-5 h-5 text-gray-400 mr-2" />
-                    <span className="font-medium text-gray-900">
-                      {currentRecipient.name}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {currentRecipient.email}
-                  </p>
-                  <div className="mt-2">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        currentRecipient.role === "signer"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
+                {isPlacingField && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      💡 Click anywhere on the document to place a{" "}
+                      {selectedFieldType} field
+                    </p>
+                    <button
+                      onClick={() => setIsPlacingField(false)}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-800"
                     >
-                      {currentRecipient.role}
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Current Recipient Info */}
+              {currentRecipient && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                    Your Information
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                      <User className="w-5 h-5 text-gray-400 mr-2" />
+                      <span className="font-medium text-gray-900">
+                        {currentRecipient.name}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {currentRecipient.email}
+                    </p>
+                    <div className="mt-2">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          currentRecipient.role === "signer"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {currentRecipient.role}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Field Summary */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  Field Summary
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Total Fields:</span>
+                    <span className="font-medium">
+                      {documentData.fields.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Your Fields:</span>
+                    <span className="font-medium">
+                      {
+                        documentData.fields.filter(
+                          (f) => f.recipientId === currentRecipient?._id
+                        ).length
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Completed:</span>
+                    <span className="font-medium text-green-600">
+                      {
+                        documentData.fields.filter(
+                          (f) =>
+                            f.recipientId === currentRecipient?._id &&
+                            f.signedData
+                        ).length
+                      }
                     </span>
                   </div>
                 </div>
               </div>
-            )}
-
-            {/* Field Summary */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Field Summary
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Fields:</span>
-                  <span className="font-medium">
-                    {documentData.fields.length}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Your Fields:</span>
-                  <span className="font-medium">
-                    {
-                      documentData.fields.filter(
-                        (f) => f.recipientId === currentRecipient?._id
-                      ).length
-                    }
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Completed:</span>
-                  <span className="font-medium text-green-600">
-                    {
-                      documentData.fields.filter(
-                        (f) =>
-                          f.recipientId === currentRecipient?._id &&
-                          f.signedData
-                      ).length
-                    }
-                  </span>
-                </div>
-              </div>
             </div>
-          </div>
+          )}
 
           {/* Main Document Area */}
           <div className="flex-1 overflow-auto">
@@ -696,13 +759,20 @@ const SignDocumentPage: React.FC = () => {
             <div className="relative w-full">
               {/* PDF/Document Display */}
               {!documentData.fileUrl && documentData.documentContent ? (
-                <div className="relative p-8 bg-white h-[800px] overflow-auto">
-                  <div className="whitespace-pre-wrap font-sans text-gray-800">
+                <div
+                  className="relative bg-white h-[800px] overflow-auto px-8 py-8"
+                  ref={textContainerRef}
+                >
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">
+                    {documentData.documentTitle}
+                  </h1>
+                  <div className="whitespace-pre-wrap font-sans text-gray-800  py-6">
                     {documentData.documentContent}
                   </div>
+
                   {showFieldsOverlay && (
                     <div
-                      className="absolute inset-0 pointer-events-none"
+                      className="absolute inset-0"
                       onClick={handleDocumentClick}
                       style={{
                         pointerEvents: isPlacingField ? "auto" : "none",
@@ -717,44 +787,42 @@ const SignDocumentPage: React.FC = () => {
               ) : documentData.fileType === "application/pdf" ? (
                 <div className="relative">
                   <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
-                    <div className="  bg-white">
-                      <Viewer
-                        fileUrl={documentData.fileUrl}
-                        defaultScale={SpecialZoomLevel.PageFit}
-                        enableSmoothScroll={true}
-                        theme="light"
-                        onPageChange={handlePageChange}
-                      />
+                    <div
+                      style={{
+                        height: "100%",
+                        width: "100%",
+                        position: "relative",
+                        overflow: "auto",
+                      }}
+                      ref={containerRef}
+                    ></div>
 
-                      {showFieldsOverlay && (
-                        <div
-                          className="absolute inset-0 pointer-events-none"
-                          onClick={handleDocumentClick}
-                          style={{
-                            pointerEvents: isPlacingField ? "auto" : "none",
-                          }}
-                        >
+                    <Viewer
+                      fileUrl={documentData.fileUrl}
+                      plugins={[defaultLayoutPluginInstance]}
+                      defaultScale={1.0}
+                      enableSmoothScroll={true}
+                      theme="light"
+                      onPageChange={handlePageChange}
+                      // onZoom={(zoom) => setScale(zoom.scale)}
+                    />
+
+                    {showFieldsOverlay && (
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        onClick={handleDocumentClick}
+                        style={{
+                          pointerEvents: isPlacingField ? "auto" : "none",
+                        }}
+                      >
+                        <div className="px-8">
                           <div className="relative w-full h-full pointer-events-auto">
                             {documentData.fields.map(renderSignatureField)}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  </Worker>
-
-                  {showFieldsOverlay && (
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      onClick={handleDocumentClick}
-                      style={{
-                        pointerEvents: isPlacingField ? "auto" : "none",
-                      }}
-                    >
-                      <div className="relative w-full h-full pointer-events-auto">
-                        {documentData.fields.map(renderSignatureField)}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </Worker>
                 </div>
               ) : documentData.fileType === "text/plain" ? (
                 <div className="relative p-8 bg-white h-[800px] overflow-auto font-mono whitespace-pre-wrap text-gray-800">
