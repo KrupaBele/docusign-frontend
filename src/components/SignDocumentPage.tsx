@@ -139,7 +139,6 @@ const SignDocumentPage: React.FC = () => {
           }
         }
         console.log(data, "test document content");
-        console.log("test");
 
         // For demo purposes, assume first recipient is current user
         // In real app, you'd identify the recipient by email/token
