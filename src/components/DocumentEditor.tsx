@@ -776,6 +776,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
     );
   };
   useEffect(() => {
+    console.log(template, "thisfkshkfh");
     if (template?.fields) {
       setDocumentFields(template.fields);
     }
