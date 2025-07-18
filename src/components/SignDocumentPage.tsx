@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Download,
@@ -64,6 +64,7 @@ interface DocumentData {
 }
 
 const SignDocumentPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -110,42 +111,49 @@ const SignDocumentPage: React.FC = () => {
     const fetchDocument = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_URL}/api/signatures/${id}`);
+        const recipientEmail = searchParams.get("recipient");
+
+        if (!recipientEmail) {
+          throw new Error("Recipient email is required");
+        }
+
+        const response = await fetch(
+          `${API_URL}/api/signatures/${id}?recipient=${encodeURIComponent(
+            recipientEmail
+          )}`
+        );
+
+        if (response.status === 404) {
+          throw new Error("Document not found or you don't have access");
+        }
 
         if (!response.ok) {
-          throw new Error("Document not found");
+          throw new Error(`Failed to load document (${response.status})`);
         }
 
         const data = await response.json();
-        setDocumentData(data);
-        if (data.documentContent) {
-          setTextContent(data.documentContent);
-        }
-        if (data.fileType === "text/plain") {
-          if (data.documentContent) {
-            setTextContent(data.documentContent);
-          } else if (data.fileUrl) {
-            // Fallback to fetching from fileUrl if documentContent missing
-            const textRes = await fetch(data.fileUrl);
-            const text = await textRes.text();
-            setTextContent(text);
-          } else {
-            // Final fallback if neither exists
-            setTextContent("Document content not available");
-          }
-        }
-        console.log(data, "test document content");
 
-        // For demo purposes, assume first recipient is current user
-        // In real app, you'd identify the recipient by email/token
-        if (data.recipients && data.recipients.length > 0) {
-          setCurrentRecipient(data.recipients[0]);
-          setSigned(data.recipients[0].signed);
+        // Find the current recipient by email
+        const recipient = data.recipients.find(
+          (r: Recipient) => r.email === recipientEmail
+        );
+
+        if (!recipient) {
+          throw new Error("You are not authorized to sign this document");
+        }
+
+        setDocumentData(data);
+        setCurrentRecipient(recipient);
+        setSigned(recipient.signed);
+
+        if (data.fileType === "text/plain") {
+          // Handle text content
         }
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load document"
         );
+        console.error("Fetch error:", err);
       } finally {
         setLoading(false);
       }
@@ -155,7 +163,6 @@ const SignDocumentPage: React.FC = () => {
       fetchDocument();
     }
   }, [id]);
-
   // Load saved signatures from localStorage
   useEffect(() => {
     const saved = JSON.parse(localStorage.getItem("savedSignatures") || "[]");
