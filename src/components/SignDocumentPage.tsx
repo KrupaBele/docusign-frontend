@@ -117,6 +117,8 @@ const SignDocumentPage: React.FC = () => {
         }
 
         const data = await response.json();
+        console.log(data, "this is data");
+
         setDocumentData(data);
         if (data.documentContent) {
           setTextContent(data.documentContent);
@@ -143,6 +145,8 @@ const SignDocumentPage: React.FC = () => {
           setSigned(data.recipients[0].signed);
         }
       } catch (err) {
+        console.log(err, "error");
+
         setError(
           err instanceof Error ? err.message : "Failed to load document"
         );
