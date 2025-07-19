@@ -6,7 +6,7 @@ import TemplateLibrary from "./components/TemplateLibrary";
 import DocumentEditor from "./components/DocumentEditor";
 import CreateFromScratch from "./components/CreateFromScratch";
 import DocumentUploader from "./components/DocumentUploader";
-import SignDocumentPage from "./components/SignDocumentPage"; // ✅ Import this component
+import SignDocumentPage from "./components/SignDocumentPage";
 import { Document, Template } from "./types";
 
 function App() {
