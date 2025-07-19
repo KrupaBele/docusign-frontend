@@ -19,6 +19,9 @@ interface DocumentUploaderProps {
     file: File;
   }) => void;
 }
+import { Viewer, Worker } from "@react-pdf-viewer/core";
+import "@react-pdf-viewer/core/lib/styles/index.css";
+import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 
 const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   onBack,
@@ -230,11 +233,25 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
                         />
                       ) : (
                         <div className="h-64">
-                          <iframe
-                            src={serverFileUrl}
-                            className="w-full h-full border border-gray-200 rounded"
-                            title="Document preview"
-                          />
+                          {serverFileUrl && (
+                            <div className="mt-4">
+                              {uploadedFile.type.startsWith("image/") ? (
+                                <img
+                                  src={serverFileUrl}
+                                  alt="Document preview"
+                                  className="max-w-full max-h-64 object-contain border border-gray-200 rounded"
+                                />
+                              ) : (
+                                <div className="h-60 border border-gray-200 rounded">
+                                  <Worker
+                                    workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}
+                                  >
+                                    <Viewer fileUrl={serverFileUrl} />
+                                  </Worker>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
