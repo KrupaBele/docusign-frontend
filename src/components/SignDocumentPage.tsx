@@ -110,6 +110,8 @@ const SignDocumentPage: React.FC = () => {
     const fetchDocument = async () => {
       try {
         setLoading(true);
+        console.log(API_URL, id, "this is id");
+
         const response = await fetch(`${API_URL}/signatures/${id}`);
 
         if (!response.ok) {
