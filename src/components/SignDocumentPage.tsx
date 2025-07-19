@@ -950,27 +950,7 @@
 // export default SignDocumentPage;
 
 import React, { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  Download,
-  Send,
-  FileText,
-  User,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Eye,
-  EyeOff,
-  Calendar,
-  Type,
-  Square,
-} from "lucide-react";
-import SignatureModal, { SavedSignature } from "./SignatureModal";
-import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
-import "@react-pdf-viewer/core/lib/styles/index.css";
-import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
-import { Menu, X } from "lucide-react";
+
 const API_URL = import.meta.env.VITE_API_URL;
 
 interface SignatureField {
