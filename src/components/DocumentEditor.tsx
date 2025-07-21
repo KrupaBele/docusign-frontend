@@ -1224,13 +1224,19 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           />
                           <div className="flex space-x-2">
                             <button
-                              onClick={() => setIsEditingRecipient(null)}
+                              onClick={() => {
+                                setIsEditingRecipient(null);
+                                setIsSidebarOpen(false);
+                              }}
                               className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
                             >
                               Save
                             </button>
                             <button
-                              onClick={() => setIsEditingRecipient(null)}
+                              onClick={() => {
+                                setIsEditingRecipient(null);
+                                setIsSidebarOpen(false);
+                              }}
                               className="px-2 py-1 text-xs text-gray-600 border border-gray-300 rounded"
                             >
                               Cancel

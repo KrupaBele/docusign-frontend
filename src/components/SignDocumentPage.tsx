@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -64,6 +65,8 @@ interface DocumentData {
 }
 
 const SignDocumentPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const recipientEmail = searchParams.get("recipient");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -142,9 +145,16 @@ const SignDocumentPage: React.FC = () => {
 
         // For demo purposes, assume first recipient is current user
         // In real app, you'd identify the recipient by email/token
-        if (data.recipients && data.recipients.length > 0) {
-          setCurrentRecipient(data.recipients[0]);
-          setSigned(data.recipients[0].signed);
+        if (data.recipients && data.recipients.length > 0 && recipientEmail) {
+          const recipient = data.recipients.find(
+            (r) => r.email === recipientEmail
+          );
+          if (recipient) {
+            setCurrentRecipient(recipient);
+            setSigned(recipient.signed);
+          } else {
+            setError("Invalid recipient link.");
+          }
         }
       } catch (err) {
         console.log(err, "error");
@@ -225,46 +235,13 @@ const SignDocumentPage: React.FC = () => {
     setIsSidebarOpen(false);
   };
 
-  const downloadPDF = async (url: string, filename: string) => {
-    try {
-      // Ensure the URL is absolute if it's relative
-      const fullUrl = url.startsWith("http") ? url : `${API_URL}${url}`;
-
-      // Add cache busting parameter
-      const cacheBusterUrl = `${fullUrl}?t=${Date.now()}`;
-
-      const response = await fetch(cacheBusterUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Verify content type
-      const contentType = response.headers.get("content-type");
-      if (!contentType?.includes("application/pdf")) {
-        throw new Error("Invalid content type - expected PDF");
-      }
-
-      // Create blob and download
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename || "document_signed.pdf";
-      link.style.display = "none";
-
-      document.body.appendChild(link);
-      link.click();
-
-      // Clean up
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(link);
-      }, 100);
-    } catch (error) {
-      console.error("Download failed:", error);
-      alert(`Download failed: ${error.message}`);
-    }
+  const downloadPDF = (url: string, filename = "signed_document.pdf") => {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleSignatureSave = (signature: SavedSignature) => {
@@ -354,7 +331,7 @@ const SignDocumentPage: React.FC = () => {
 
       const result = await response.json();
 
-      if (!response.ok || !result.success) {
+      if (!response.ok) {
         throw new Error("Failed to submit signature");
       }
 
@@ -365,7 +342,7 @@ const SignDocumentPage: React.FC = () => {
         );
 
         // Trigger download automatically after signing
-        downloadPDF(result.fileUrl, `${documentData.documentTitle}_signed.pdf`);
+        // downloadPDF(result.fileUrl, `${documentData.documentTitle}_signed.pdf`);
       }
 
       // Update recipient status
@@ -536,6 +513,7 @@ const SignDocumentPage: React.FC = () => {
 
               <a
                 href={documentData.fileUrl}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg"
               >
