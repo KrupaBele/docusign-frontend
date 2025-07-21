@@ -488,252 +488,258 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }
   };
 
-  // Enhanced download handler with multi-page support
   const handleDownload = async () => {
     try {
-      if (template.fileUrl && template.fileType === "application/pdf") {
-        // Load the original PDF
-        const existingPdfBytes = await fetch(template.fileUrl).then((res) =>
-          res.arrayBuffer()
-        );
-        const pdfDoc = await PDFDocument.load(existingPdfBytes);
-        const pages = pdfDoc.getPages();
+      // For text documents (non-PDF)
+      if (!template.fileUrl || template.fileType !== "application/pdf") {
+        // ... (keep existing text document handling)
+        return;
+      }
 
-        console.log("Total pages in PDF:", pages.length);
-        console.log("Fields to process:", documentFields.length);
+      // For PDF documents - use the same logic as generateSignedPDF
+      const existingPdfBytes = await fetch(template.fileUrl).then((res) =>
+        res.arrayBuffer()
+      );
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+      const pages = pdfDoc.getPages();
 
-        // Group fields by page
-        const fieldsByPage: { [key: number]: DocumentField[] } = {};
-        documentFields.forEach((field) => {
-          if (!field.signedData) return;
+      console.log("Total pages in PDF:", pages.length);
+      console.log("Fields to process:", documentFields.length);
 
-          const pageNum = field.pageNumber || 1;
-          if (!fieldsByPage[pageNum]) {
-            fieldsByPage[pageNum] = [];
-          }
-          fieldsByPage[pageNum].push(field);
+      // Get sidebar width (adjust this value based on your actual sidebar width)
+      const sidebarWidth = isSidebarOpen ? 320 : 0; // 320px when open, 0 when closed
+
+      // Group fields by page
+      const fieldsByPage: { [key: number]: DocumentField[] } = {};
+      documentFields.forEach((field) => {
+        if (!field.signedData) return;
+
+        const pageNum = field.pageNumber || 1;
+        if (!fieldsByPage[pageNum]) {
+          fieldsByPage[pageNum] = [];
+        }
+        fieldsByPage[pageNum].push(field);
+      });
+
+      console.log("Fields grouped by page:", fieldsByPage);
+
+      // Process each page that has fields
+      for (const [pageNumStr, pageFields] of Object.entries(fieldsByPage)) {
+        const pageNum = parseInt(pageNumStr);
+        const page = pages[pageNum - 1]; // Pages are 0-indexed in pdf-lib
+
+        if (!page) {
+          console.warn(`Page ${pageNum} not found in PDF`);
+          continue;
+        }
+
+        // Get page dimensions
+        const { width: pdfWidth, height: pdfHeight } = page.getSize();
+
+        console.log(`Processing page ${pageNum} - PDF Dimensions:`, {
+          pdfWidth,
+          pdfHeight,
         });
 
-        console.log("Fields grouped by page:", fieldsByPage);
+        // Find the PDF viewer container to get actual rendered dimensions
+        const pdfViewer = document.querySelector(".rpv-core__viewer-layer");
+        const pdfPageElements = document.querySelectorAll(
+          ".rpv-core__page-layer"
+        );
 
-        // Process each page that has fields
-        for (const [pageNumStr, pageFields] of Object.entries(fieldsByPage)) {
-          const pageNum = parseInt(pageNumStr);
-          const page = pages[pageNum - 1]; // Pages are 0-indexed in pdf-lib
+        let actualViewerWidth = pageWidth;
+        let actualViewerHeight = pageHeights[pageNum] || pageHeight;
 
-          if (!page) {
-            console.warn(`Page ${pageNum} not found in PDF`);
-            continue;
-          }
+        if (pdfPageElements[pageNum - 1]) {
+          const pageRect = pdfPageElements[pageNum - 1].getBoundingClientRect();
+          actualViewerWidth = pageRect.width;
+          actualViewerHeight = pageRect.height;
+          console.log(`Page ${pageNum} rendered dimensions:`, {
+            width: actualViewerWidth,
+            height: actualViewerHeight,
+          });
+        }
 
-          // Get page dimensions
-          const { width: pdfWidth, height: pdfHeight } = page.getSize();
+        // Calculate proper scaling factors for this page
+        const scaleX = pdfWidth / actualViewerWidth;
+        const scaleY = pdfHeight / actualViewerHeight;
 
-          console.log(`Processing page ${pageNum} - PDF Dimensions:`, {
+        console.log(`Page ${pageNum} scale factors:`, { scaleX, scaleY });
+
+        // Add each field to this page
+        for (const field of pageFields) {
+          // Adjust X coordinate by subtracting sidebar width
+          const adjustedViewerX = field.x - sidebarWidth;
+
+          // Calculate normalized coordinates accounting for sidebar
+          const normalizedX = (adjustedViewerX / actualViewerWidth) * pdfWidth;
+          const normalizedY = (field.y / actualViewerHeight) * pdfHeight;
+
+          // For multi-page documents, adjust Y position relative to the current page
+          const yOnPage = normalizedY - (pageNum - 1) * pdfHeight;
+          let adjustedY = pdfHeight - yOnPage - field.height;
+          let adjustedX = normalizedX;
+
+          // Clip to avoid out-of-bound placement
+          if (adjustedX < 0) adjustedX = 0;
+          if (adjustedX + field.width > pdfWidth)
+            adjustedX = pdfWidth - field.width;
+          if (adjustedY < 0) adjustedY = 0;
+          if (adjustedY + field.height > pdfHeight)
+            adjustedY = pdfHeight - field.height;
+
+          console.log(`Field ${field.id} positioning on page ${pageNum}:`, {
+            originalX: field.x,
+            originalY: field.y,
+            adjustedViewerX,
+            normalizedX,
+            normalizedY,
+            adjustedX,
+            adjustedY,
             pdfWidth,
             pdfHeight,
+            sidebarWidth,
           });
 
-          // Find the PDF viewer container to get actual rendered dimensions
-          const pdfViewer = document.querySelector(".rpv-core__viewer-layer");
-          const pdfPageElements = document.querySelectorAll(
-            ".rpv-core__page-layer"
-          );
+          if (field.type === "signature" && field.signedData) {
+            switch (field.signedData.type) {
+              case "draw":
+              case "upload":
+                try {
+                  // Handle different image formats
+                  const imageData = field.signedData.data;
+                  let imageBytes: ArrayBuffer;
+                  let embedImage: any;
 
-          let actualViewerWidth = pageWidth;
-          let actualViewerHeight = pageHeights[pageNum] || pageHeight;
+                  if (imageData.startsWith("data:image/png")) {
+                    // Handle base64 PNG
+                    const base64Data = imageData.split(",")[1];
+                    imageBytes = Uint8Array.from(atob(base64Data), (c) =>
+                      c.charCodeAt(0)
+                    ).buffer;
+                    embedImage = await pdfDoc.embedPng(imageBytes);
+                  } else if (
+                    imageData.startsWith("data:image/jpeg") ||
+                    imageData.startsWith("data:image/jpg")
+                  ) {
+                    // Handle base64 JPEG
+                    const base64Data = imageData.split(",")[1];
+                    imageBytes = Uint8Array.from(atob(base64Data), (c) =>
+                      c.charCodeAt(0)
+                    ).buffer;
+                    embedImage = await pdfDoc.embedJpg(imageBytes);
+                  } else {
+                    // Try to fetch as URL
+                    imageBytes = await fetch(imageData).then((res) =>
+                      res.arrayBuffer()
+                    );
+                    embedImage = await pdfDoc.embedPng(imageBytes);
+                  }
 
-          if (pdfPageElements[pageNum - 1]) {
-            const pageRect =
-              pdfPageElements[pageNum - 1].getBoundingClientRect();
-            actualViewerWidth = pageRect.width;
-            actualViewerHeight = pageRect.height;
-            console.log(`Page ${pageNum} rendered dimensions:`, {
-              width: actualViewerWidth,
-              height: actualViewerHeight,
-            });
-          }
+                  // Calculate how close the field is to the right edge in the DOM viewer
+                  // Calculate distances and PDF orientation
+                  const distanceFromRightEdge = pdfWidth - field.x;
+                  const isNearRightEdge = distanceFromRightEdge < 200;
+                  const isNarrowPDF = pdfHeight > pdfWidth;
 
-          // Calculate proper scaling factors for this page
-          const scaleX = pdfWidth / actualViewerWidth;
-          const scaleY = pdfHeight / actualViewerHeight;
+                  console.log("PDF Width:", pdfWidth);
+                  console.log("Field X:", field.x);
+                  console.log(
+                    "Distance from right edge:",
+                    distanceFromRightEdge
+                  );
+                  console.log("Is near right edge:", isNearRightEdge);
+                  console.log("Is narrow PDF:", isNarrowPDF);
 
-          console.log(`Page ${pageNum} scale factors:`, { scaleX, scaleY });
+                  // Determine final X based on all conditions
+                  let finalX;
 
-          // Add each field to this page
-          for (const field of pageFields) {
-            // Convert viewer coordinates to PDF coordinates for this specific page
-            // Compute absolute Y of the top of the page
-            const pageTopAbsoluteY = getAbsoluteY(0, pageNum);
-
-            // Adjust Y by subtracting top offset of page, then flip for PDF-lib coordinate
-            const relativeY = field.y - pageTopAbsoluteY;
-
-            const xPos = field.x * scaleX;
-            const yPos = pdfHeight - (relativeY + field.height) * scaleY;
-
-            const fieldWidth = field.width * scaleX;
-            const fieldHeight = field.height * scaleY;
-
-            console.log(`Field ${field.id} on Page ${pageNum}`, {
-              fieldY: field.y,
-              pageTopY: pageTopAbsoluteY,
-              relativeY,
-              pdfHeight,
-              yPos,
-            });
-
-            if (field.type === "signature" && field.signedData) {
-              switch (field.signedData.type) {
-                case "draw":
-                case "upload":
-                  try {
-                    // Handle different image formats
-                    const imageData = field.signedData.data;
-                    let imageBytes: ArrayBuffer;
-                    let embedImage: any;
-
-                    if (imageData.startsWith("data:image/png")) {
-                      // Handle base64 PNG
-                      const base64Data = imageData.split(",")[1];
-                      imageBytes = Uint8Array.from(atob(base64Data), (c) =>
-                        c.charCodeAt(0)
-                      ).buffer;
-                      embedImage = await pdfDoc.embedPng(imageBytes);
-                    } else if (
-                      imageData.startsWith("data:image/jpeg") ||
-                      imageData.startsWith("data:image/jpg")
-                    ) {
-                      // Handle base64 JPEG
-                      const base64Data = imageData.split(",")[1];
-                      imageBytes = Uint8Array.from(atob(base64Data), (c) =>
-                        c.charCodeAt(0)
-                      ).buffer;
-                      embedImage = await pdfDoc.embedJpg(imageBytes);
+                  if (isNarrowPDF) {
+                    if (field.x > pdfWidth) {
+                      // Avoid shifting if field.x exceeds actual page width
+                      finalX = adjustedX;
                     } else {
-                      // Try to fetch as URL
-                      imageBytes = await fetch(imageData).then((res) =>
-                        res.arrayBuffer()
-                      );
-                      embedImage = await pdfDoc.embedPng(imageBytes);
+                      finalX = adjustedX - 150;
                     }
-
-                    page.drawImage(embedImage, {
-                      x: xPos,
-                      y: yPos,
-                      width: fieldWidth,
-                      height: fieldHeight,
-                    });
-
-                    console.log(
-                      `Successfully embedded signature image on page ${pageNum}`
-                    );
-                  } catch (error) {
-                    console.error(
-                      `Error embedding signature image on page ${pageNum}:`,
-                      error
-                    );
-                    // Fallback to text
-                    const font = await pdfDoc.embedFont(
-                      StandardFonts.Helvetica
-                    );
-                    page.drawText("SIGNATURE", {
-                      x: xPos,
-                      y: yPos + fieldHeight / 2,
-                      size: Math.min(fieldHeight * 0.6, 12),
-                      font: font,
-                    });
+                  } else {
+                    finalX = isNearRightEdge ? adjustedX : adjustedX - 150;
                   }
-                  break;
 
-                case "type":
-                  try {
-                    const { text, font: fontFamily } = JSON.parse(
-                      field.signedData.data
-                    );
-                    const font = await pdfDoc.embedFont(
-                      StandardFonts.Helvetica
-                    );
+                  // Draw signature image
+                  page.drawImage(embedImage, {
+                    x: finalX,
+                    y: adjustedY + 50,
+                    width: field.width,
+                    height: field.height,
+                  });
 
-                    // Calculate appropriate font size
-                    const fontSize = Math.min(fieldHeight * 0.7, 14);
+                  console.log(
+                    `Successfully embedded signature image on page ${pageNum}`
+                  );
+                } catch (error) {
+                  console.error(
+                    `Error embedding signature image on page ${pageNum}:`,
+                    error
+                  );
+                  // Fallback to text
+                  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+                  page.drawText("SIGNATURE", {
+                    x: adjustedX,
+                    y: adjustedY - field.height / 2,
+                    size: Math.min(field.height * 0.6, 12),
+                    font: font,
+                  });
+                }
+                break;
 
-                    page.drawText(text, {
-                      x: xPos,
-                      y: yPos + (fieldHeight - fontSize) / 2, // Center vertically
-                      size: fontSize,
-                      font: font,
-                    });
+              case "type":
+                try {
+                  const { text, font: fontFamily } = JSON.parse(
+                    field.signedData.data
+                  );
+                  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-                    console.log(
-                      `Successfully added typed signature on page ${pageNum}`
-                    );
-                  } catch (error) {
-                    console.error(
-                      `Error adding typed signature on page ${pageNum}:`,
-                      error
-                    );
-                    const font = await pdfDoc.embedFont(
-                      StandardFonts.Helvetica
-                    );
-                    page.drawText("SIGNATURE", {
-                      x: xPos,
-                      y: yPos + fieldHeight / 2,
-                      size: Math.min(fieldHeight * 0.6, 12),
-                      font: font,
-                    });
-                  }
-                  break;
-              }
-            } else if (field.type === "date" && field.signedData) {
-              // Handle date fields
-              const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-              const dateText = new Date().toLocaleDateString();
-              const fontSize = Math.min(fieldHeight * 0.7, 12);
+                  // Calculate appropriate font size
+                  const fontSize = Math.min(field.height * 0.7, 14);
 
-              page.drawText(dateText, {
-                x: xPos,
-                y: yPos + (fieldHeight - fontSize) / 2,
-                size: fontSize,
-                font: font,
-              });
-            } else if (field.type === "text" && field.signedData) {
-              // Handle text fields
-              const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-              const textData =
-                typeof field.signedData.data === "string"
-                  ? field.signedData.data
-                  : JSON.parse(field.signedData.data).text || "TEXT";
-              const fontSize = Math.min(fieldHeight * 0.7, 12);
+                  page.drawText(text, {
+                    x: adjustedX,
+                    y: adjustedY + (field.height - fontSize) / 2, // Center vertically
+                    size: fontSize,
+                    font: font,
+                  });
 
-              page.drawText(textData, {
-                x: xPos,
-                y: yPos + (fieldHeight - fontSize) / 2,
-                size: fontSize,
-                font: font,
-              });
+                  console.log(
+                    `Successfully added typed signature on page ${pageNum}`
+                  );
+                } catch (error) {
+                  console.error(
+                    `Error adding typed signature on page ${pageNum}:`,
+                    error
+                  );
+                  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+                  page.drawText("SIGNATURE", {
+                    x: adjustedX,
+                    y: adjustedY + field.height / 2,
+                    size: Math.min(field.height * 0.6, 12),
+                    font: font,
+                  });
+                }
+                break;
             }
           }
         }
-
-        // Save and download
-        const pdfBytes = await pdfDoc.save();
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${documentTitle || "document"}_signed.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-        setSaveStatus({
-          show: true,
-          success: true,
-          message: "Document downloaded successfully with signatures",
-        });
       }
+
+      // Save and download
+      const pdfBytes = await pdfDoc.save();
+      downloadPDF(pdfBytes, `${documentTitle || "document"}_signed.pdf`);
+
+      setSaveStatus({
+        show: true,
+        success: true,
+        message: "Document downloaded successfully with signatures",
+      });
     } catch (error) {
       console.error("Download failed:", error);
       setSaveStatus({
@@ -742,6 +748,19 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
         message: "Failed to download document with signatures",
       });
     }
+  };
+
+  // Helper function to trigger download
+  const downloadPDF = (pdfBytes: Uint8Array, filename: string) => {
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   const handleSaveSignature = (signature: SavedSignature) => {
