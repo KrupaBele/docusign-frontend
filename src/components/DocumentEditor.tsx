@@ -492,8 +492,131 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
     try {
       // For text documents (non-PDF)
       if (!template.fileUrl || template.fileType !== "application/pdf") {
-        // ... (keep existing text document handling)
-        return;
+        const pdfDoc = await PDFDocument.create();
+        const page = pdfDoc.addPage([595, 842]); // A4 size in points
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+        const title = template.title || "Untitled Document";
+        page.drawText(title, {
+          x: 50,
+          y: 820,
+          size: 18,
+          font,
+        });
+
+        const lines = (template.content || "").split("\n");
+        let y = 790;
+
+        const maxWidth = 495; // page width (595) - margin (50 * 2)
+        const fontSize = 12;
+        function wrapText(
+          text: string,
+          font: PDFFont,
+          fontSize: number,
+          maxWidth: number
+        ): string[] {
+          const words = text.split(" ");
+          const lines: string[] = [];
+          let currentLine = "";
+
+          for (const word of words) {
+            const lineTest = currentLine ? `${currentLine} ${word}` : word;
+            const width = font.widthOfTextAtSize(lineTest, fontSize);
+            if (width < maxWidth) {
+              currentLine = lineTest;
+            } else {
+              if (currentLine) lines.push(currentLine);
+              currentLine = word;
+            }
+          }
+
+          if (currentLine) lines.push(currentLine);
+          return lines;
+        }
+
+        for (const line of lines) {
+          const wrappedLines = wrapText(line, font, fontSize, maxWidth);
+          for (const wrappedLine of wrappedLines) {
+            if (y < 50) break; // avoid bottom margin
+            page.drawText(wrappedLine, {
+              x: 50,
+              y,
+              size: fontSize,
+              font,
+            });
+            y -= 21;
+          }
+        }
+
+        const pageWidth = 595;
+        const pageHeight = 842;
+
+        for (const field of documentFields) {
+          if (!field.signedData) continue;
+
+          const xPos = field.x;
+          const yPos = pageHeight - field.y - field.height;
+
+          if (field.type === "signature") {
+            if (
+              field.signedData.type === "draw" ||
+              field.signedData.type === "upload"
+            ) {
+              try {
+                const imageData = field.signedData.data;
+                const base64Data = imageData.split(",")[1];
+                const imageBytes = Uint8Array.from(atob(base64Data), (c) =>
+                  c.charCodeAt(0)
+                ).buffer;
+
+                const embedImage = imageData.startsWith("data:image/png")
+                  ? await pdfDoc.embedPng(imageBytes)
+                  : await pdfDoc.embedJpg(imageBytes);
+
+                page.drawImage(embedImage, {
+                  x: xPos,
+                  y: yPos,
+                  width: field.width,
+                  height: field.height,
+                });
+              } catch (error) {
+                console.error("Error embedding signature image:", error);
+                page.drawText("SIGNATURE", {
+                  x: xPos,
+                  y: yPos + field.height / 2,
+                  size: Math.min(field.height * 0.6, 12),
+                  font,
+                });
+              }
+            } else if (field.signedData.type === "type") {
+              try {
+                const { text } = JSON.parse(field.signedData.data);
+                const fontSize = Math.min(field.height * 0.7, 14);
+                page.drawText(text, {
+                  x: xPos,
+                  y: yPos + (field.height - fontSize) / 2,
+                  size: fontSize,
+                  font,
+                });
+              } catch (err) {
+                console.error("Typed signature error:", err);
+              }
+            }
+          }
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        downloadPDF(
+          pdfBytes,
+          `${template.documentTitle || "document"}_signed.pdf`
+        );
+
+        setSaveStatus({
+          show: true,
+          success: true,
+          message: "Text document signed and downloaded successfully",
+        });
+        return; // Stop execution for the PDF flow
       }
 
       // For PDF documents - use the same logic as generateSignedPDF
@@ -641,15 +764,6 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   const distanceFromRightEdge = pdfWidth - field.x;
                   const isNearRightEdge = distanceFromRightEdge < 200;
                   const isNarrowPDF = pdfHeight > pdfWidth;
-
-                  console.log("PDF Width:", pdfWidth);
-                  console.log("Field X:", field.x);
-                  console.log(
-                    "Distance from right edge:",
-                    distanceFromRightEdge
-                  );
-                  console.log("Is near right edge:", isNearRightEdge);
-                  console.log("Is narrow PDF:", isNarrowPDF);
 
                   // Determine final X based on all conditions
                   let finalX;
