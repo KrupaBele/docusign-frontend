@@ -139,6 +139,13 @@ function App() {
                       ? handleBackToDashboard
                       : handleBackToTemplates
                   }
+                  mode={
+                    selectedTemplate.id.startsWith("custom-")
+                      ? "create"
+                      : selectedTemplate.id.startsWith("uploaded-")
+                      ? "upload"
+                      : "template"
+                  }
                 />
               )}
             </div>

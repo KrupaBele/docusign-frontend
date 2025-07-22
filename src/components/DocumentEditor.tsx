@@ -37,11 +37,13 @@ const API_URL = import.meta.env.VITE_API_URL;
 interface DocumentEditorProps {
   template: Template;
   onBack: () => void;
+  mode?: "template" | "create" | "upload";
 }
 
 const DocumentEditor: React.FC<DocumentEditorProps> = ({
   template,
   onBack,
+  mode,
 }) => {
   const [recipients, setRecipients] = useState<Recipient[]>([
     { id: "1", name: "Full name", email: "email@example.com", role: "signer" },
@@ -493,61 +495,106 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
       // For text documents (non-PDF)
       if (!template.fileUrl || template.fileType !== "application/pdf") {
         const pdfDoc = await PDFDocument.create();
-        const page = pdfDoc.addPage([595, 842]); // A4 size in points
+        let page = pdfDoc.addPage([842, 595]);
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
         const title = template.title || "Untitled Document";
         page.drawText(title, {
           x: 50,
-          y: 820,
+          y: 530,
           size: 18,
           font,
         });
 
-        const lines = (template.content || "").split("\n");
-        let y = 790;
+        // Get the content with preserved spacing
+        const content = template.content || "";
 
-        const maxWidth = 495; // page width (595) - margin (50 * 2)
+        // Calculate line height based on font size
         const fontSize = 12;
+        const lineHeight = fontSize; // 1.5 times font size for spacing
+
+        // Starting position for content
+        let y = 490;
+
+        // Calculate max width (page width - margins)
+        const maxWidth = 742; // 595 (A4 width) - 50 (left margin) - 50 (right margin)
+        const leftMargin = 50;
+
+        // Function to wrap text while preserving indentation
         function wrapText(
           text: string,
           font: PDFFont,
           fontSize: number,
           maxWidth: number
-        ): string[] {
-          const words = text.split(" ");
-          const lines: string[] = [];
-          let currentLine = "";
+        ): { text: string; indent: number }[] {
+          const lines: { text: string; indent: number }[] = [];
+          const paragraphs = text.split("\n");
 
-          for (const word of words) {
-            const lineTest = currentLine ? `${currentLine} ${word}` : word;
-            const width = font.widthOfTextAtSize(lineTest, fontSize);
-            if (width < maxWidth) {
-              currentLine = lineTest;
-            } else {
-              if (currentLine) lines.push(currentLine);
-              currentLine = word;
+          for (const paragraph of paragraphs) {
+            // Detect indentation (spaces or tabs at the start)
+            const indentMatch = paragraph.match(/^[\s\t]+/);
+            const indent = indentMatch ? indentMatch[0].length * 5 : 0; // Convert indent to points (approx 5pt per space)
+
+            const words = paragraph.trim().split(" ");
+            let currentLine = "";
+
+            for (const word of words) {
+              const testLine = currentLine ? `${currentLine} ${word}` : word;
+              const width = font.widthOfTextAtSize(testLine, fontSize);
+
+              if (width <= maxWidth - indent) {
+                currentLine = testLine;
+              } else {
+                if (currentLine) {
+                  lines.push({ text: currentLine, indent });
+                  currentLine = word;
+                } else {
+                  // Handle very long words that exceed line width
+                  lines.push({ text: word, indent });
+                  currentLine = "";
+                }
+              }
             }
+
+            if (currentLine) {
+              lines.push({ text: currentLine, indent });
+            }
+
+            // Add empty line for paragraph breaks
+            lines.push({ text: "", indent: 0 });
           }
 
-          if (currentLine) lines.push(currentLine);
           return lines;
         }
 
-        for (const line of lines) {
-          const wrappedLines = wrapText(line, font, fontSize, maxWidth);
-          for (const wrappedLine of wrappedLines) {
-            if (y < 50) break; // avoid bottom margin
-            page.drawText(wrappedLine, {
-              x: 50,
+        // Process the content with preserved spacing
+        const wrappedLines = wrapText(content, font, fontSize, maxWidth);
+
+        for (const line of wrappedLines) {
+          if (y < 50) {
+            // Add new page if we run out of space
+            page = pdfDoc.addPage([842, 595]);
+            y = 530; // Reset Y position for new page
+          }
+
+          if (line.text) {
+            page.drawText(line.text, {
+              x: leftMargin + line.indent,
               y,
               size: fontSize,
               font,
             });
-            y -= 21;
+          }
+
+          y -= lineHeight;
+
+          // Extra space for empty lines (paragraph breaks)
+          if (!line.text) {
+            y -= lineHeight / 2;
           }
         }
 
+        // Handle signature fields
         const pageWidth = 595;
         const pageHeight = 842;
 
@@ -555,7 +602,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
           if (!field.signedData) continue;
 
           const xPos = field.x;
-          const yPos = pageHeight - field.y - field.height;
+          const yPos = pageHeight - field.y - field.height + 70;
 
           if (field.type === "signature") {
             if (
@@ -575,7 +622,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
                 page.drawImage(embedImage, {
                   x: xPos,
-                  y: yPos,
+                  y: yPos + 150,
                   width: field.width,
                   height: field.height,
                 });
@@ -583,7 +630,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 console.error("Error embedding signature image:", error);
                 page.drawText("SIGNATURE", {
                   x: xPos,
-                  y: yPos + field.height / 2,
+                  y: yPos,
                   size: Math.min(field.height * 0.6, 12),
                   font,
                 });
@@ -616,7 +663,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
           success: true,
           message: "Text document signed and downloaded successfully",
         });
-        return; // Stop execution for the PDF flow
+        return;
       }
 
       // For PDF documents - use the same logic as generateSignedPDF
@@ -1143,8 +1190,20 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 </button>
                 <button
                   onClick={() => setShowSendModal(true)}
-                  disabled={isValidating || isSending}
-                  className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  disabled={
+                    isValidating ||
+                    isSending ||
+                    mode === "create" ||
+                    mode === "template"
+                  }
+                  className={`flex items-center px-6 py-2 rounded-lg ${
+                    isValidating ||
+                    isSending ||
+                    mode === "create" ||
+                    mode === "template"
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
                 >
                   <Send className="w-4 h-4 mr-2" />
                   {isValidating
@@ -1668,7 +1727,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       </div>
                     ) : (
                       /* Regular text document */
-                      <div className="px-8 py-8">
+                      <div className="px-8 ">
                         <div>
                           <h1 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">
                             {documentTitle}

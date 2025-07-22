@@ -73,9 +73,9 @@ const SendForSignatureModal: React.FC<SendForSignatureModalProps> = ({
       (f) => f.type === "signature"
     );
 
-    if (signerRecipients.length > 0 && signatureFields.length === 0) {
-      errors.push("Add at least one signature field for signers");
-    }
+    // if (signerRecipients.length > 0 && signatureFields.length === 0) {
+    //   errors.push("Add at least one signature field for signers");
+    // }
 
     // Check if all signature fields are assigned to recipients
     signatureFields.forEach((field, index) => {
